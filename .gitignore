@@ -1,0 +1,7 @@
+/serverdata.json
+/.gradle/
+/.idea/
+/build/tmp/
+/build/kotlin/
+/build/classes/
+/build/libs/serverdata.json
