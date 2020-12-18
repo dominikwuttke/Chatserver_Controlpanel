@@ -8,7 +8,7 @@ import tornadofx.*
  * The whole screen of the program
  * Other screens are added to this screen
  */
-class MainScreenSelect : View("Chatserver Admintool") {
+class MainScreenSelect : View("Chatserver Controlpanel") {
 
 
 

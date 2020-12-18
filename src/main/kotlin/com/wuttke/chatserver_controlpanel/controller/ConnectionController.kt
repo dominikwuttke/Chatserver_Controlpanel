@@ -4,6 +4,7 @@ import com.wuttke.chatserver_controlpanel.socketapi.AdminStatus
 import com.wuttke.chatserver_controlpanel.socketapi.Types
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
 import com.wuttke.chatserver_controlpanel.app.Styles
 import com.wuttke.chatserver_controlpanel.socketapi.AdminScreen
 import com.wuttke.chatserver_controlpanel.viewmodel.*
@@ -36,8 +37,8 @@ class ConnectionController : Controller() {
     private var adminpass : String = ""
     private var hasFixedLogin : Boolean = false
 
-    private lateinit var serverData : ServerData
-    private var dirtyServerData : ServerData? = null
+    private lateinit var serverData : ArrayList<Server>
+    private var dirtyServerData = ArrayList<Server>()
     val angemeldet = SimpleBooleanProperty(false)
     val isOnline = SimpleBooleanProperty(false)
 
@@ -68,7 +69,8 @@ class ConnectionController : Controller() {
             file.printWriter().use { it.print("{server:[]}") }
         }
         val reader = FileReader("serverdata.json")
-        serverData = gson.fromJson(reader,ServerData::class.java)
+        val mytype = object : TypeToken<List<Server>>(){}.type
+        serverData = gson.fromJson(reader,mytype)
     }
 
     /**
@@ -76,9 +78,9 @@ class ConnectionController : Controller() {
      */
     private fun connect(){
         val logindaten = Credentials.basic(adminuser,adminpass)
+        updateServerData()
         try {
 
-           updateServerData()
             val request = Request.Builder().url(url).addHeader("Authorization",logindaten).build()
             webSocket = client.newWebSocket(request, Listener(this))
         }catch (e : IllegalArgumentException){
@@ -148,10 +150,21 @@ class ConnectionController : Controller() {
      * when there were no parameters provided this will trigger dialogs to establish a connection
      */
     fun login(){
+
         if (hasFixedLogin) connect()
         else {
-            dirtyServerData = serverData.copy()
-            selectServer()
+           copyServerdata()
+           selectServer()
+        }
+    }
+
+    /**
+     * save the current status of the serverdata in a copy for temporary use
+     */
+    private fun copyServerdata(){
+        dirtyServerData.apply {
+            clear()
+            serverData.toCollection(this)
         }
     }
 
@@ -161,10 +174,10 @@ class ConnectionController : Controller() {
      */
     private fun selectServer(){
         val serverNames = ArrayList<String>().apply {
-                serverData.server.forEach { add(it.serverURL) }
+                serverData.forEach { add(it.serverURL) }
              }
         showLoginDialog("Select a server",serverNames.asObservable(),{
-            url = serverData.server[it].serverURL
+            url = serverData[it].serverURL
             selectUser(it)
         },{
             newServer()
@@ -175,10 +188,10 @@ class ConnectionController : Controller() {
      * Show a dialog to enter an URL to which a connection should be established
      */
     private fun newServer(){
-        dirtyServerData = serverData.copy()
+       copyServerdata()
         mainScreenController.showDialog("Enter ServerURL"){
             url = it
-            dirtyServerData!!.server.add(Server(it,ArrayList(), ArrayList()))
+            dirtyServerData.add(Server(it,ArrayList(), ArrayList()))
             newuser()
         }
     }
@@ -189,10 +202,10 @@ class ConnectionController : Controller() {
      * @param serverArrayIndex the index of the selected server in the array of servers
      */
     private fun selectUser(serverArrayIndex: Int){
-        val userNames = serverData.server[serverArrayIndex].user
+        val userNames = serverData[serverArrayIndex].user
         showLoginDialog("Select the user as whom to connect",userNames.asObservable(),{
             adminuser = userNames[it]
-            adminpass = serverData.server[serverArrayIndex].pass[it]
+            adminpass = serverData[serverArrayIndex].pass[it]
             connect()
         },{
             newuser(serverArrayIndex)
@@ -207,11 +220,11 @@ class ConnectionController : Controller() {
         mainScreenController.showDialog("Enter a name"){
             adminuser = it
             if (serverArrayIndex == -1){
-                dirtyServerData!!.server[dirtyServerData!!.server.lastIndex].user.add(it)
+                dirtyServerData[dirtyServerData.lastIndex].user.add(it)
             }
             else{
-                dirtyServerData = serverData.copy()
-                dirtyServerData!!.server[serverArrayIndex].user.add(it)
+               copyServerdata()
+                dirtyServerData[serverArrayIndex].user.add(it)
             }
             enterPassword(serverArrayIndex)
 
@@ -225,11 +238,10 @@ class ConnectionController : Controller() {
         mainScreenController.showDialog("Enter the password"){
             adminpass = it
             if (serverArrayIndex == -1){
-                dirtyServerData!!.server[dirtyServerData!!.server.lastIndex].pass.add(it)
+                dirtyServerData[dirtyServerData.lastIndex].pass.add(it)
             }
             else{
-                dirtyServerData = serverData.copy()
-                dirtyServerData!!.server[serverArrayIndex].pass.add(it)
+                dirtyServerData[serverArrayIndex].pass.add(it)
             }
             connect()
         }
@@ -242,7 +254,10 @@ class ConnectionController : Controller() {
     private fun updateServerData(){
         if(hasFixedLogin) return
         val fileWriter = FileWriter("serverdata.json",false)
-        serverData = dirtyServerData!!
+        serverData.apply {
+            clear()
+            dirtyServerData.toCollection(this)
+        }
         fileWriter.use {
             it.write(gson.toJson(serverData).toString())
         }
@@ -322,12 +337,11 @@ class ConnectionController : Controller() {
                         contextmenu {
                             item("delete").action {
                                 if (selectedServer == -1){
-                                    serverData.server.removeAt(selectionModel.selectedIndex)
+                                    dirtyServerData.removeAt(selectionModel.selectedIndex)
                                 }
                                 else{
 
-                                    serverData.server[selectedServer].pass.removeAt(selectionModel.selectedIndex)
-
+                                    dirtyServerData[selectedServer].pass.removeAt(selectionModel.selectedIndex)
                                 }
                                 values.remove(selectionModel.selectedItem)
                                 updateServerData()

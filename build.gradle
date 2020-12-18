@@ -43,7 +43,7 @@ dependencies {
 
 shadowJar {
 
-    archiveBaseName.value('websitechat')
+    archiveBaseName.value('Chatserver_Controlpanel')
     archiveClassifier.value(null)
     archiveVersion.value(null)
 }
